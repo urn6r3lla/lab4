@@ -1,0 +1,69 @@
+---
+- name: Deploy and manage lab4 HTTP service
+  hosts: lab4
+  become: yes
+  vars:
+    service_name: lab4-service
+    service_dir: /opt/lab4-service
+    html_dir: "{{ service_dir }}/html"
+    student_surname: "Frolkin"
+
+  tasks:
+#    - name: Install required packages
+#      apt:
+#        name:
+#          - curl
+#          - python3
+#        state: present
+#        update_cache: yes
+
+    - name: Create service directories
+      file:
+        path: "{{ html_dir }}"
+        state: directory
+        mode: '0755'
+        owner: www-data
+        group: www-data
+
+    - name: Deploy index.html with surname
+      copy:
+        content: "<html><body><h1>{{ student_surname }}</h1></body></html>"
+        dest: "{{ html_dir }}/index.html"
+        mode: '0644'
+        owner: www-data
+        group: www-data
+
+    - name: Copy service.sh script
+      copy:
+        src: ../scripts/service.sh
+        dest: "{{ service_dir }}/service.sh"
+        mode: '0755'
+        owner: www-data
+        group: www-data
+
+    - name: Copy systemd unit file
+      copy:
+        src: ../services/lab4-service.service
+        dest: "/etc/systemd/system/{{ service_name }}.service"
+        mode: '0644'
+      notify: reload systemd
+
+    - name: Enable and start service
+      systemd:
+        name: "{{ service_name }}"
+        enabled: yes
+        state: started
+        daemon_reload: yes
+    - name: Check that service returns HTTP 200
+      uri:
+        url: "http://127.0.0.1:8000/"
+        method: GET
+        status_code: 200
+        return_content: no
+      register: result
+      failed_when: result.status != 200
+
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
